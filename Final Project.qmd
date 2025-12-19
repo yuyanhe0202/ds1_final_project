@@ -53,8 +53,11 @@ load("data/Final_2018Merged.RData")
 # hosp_10k: Number of hospitals per 10k population
 # staff_10k: Number of health professionals per 10,000 population
 
+
+# select only the variables needed
 data <- Final_2018Merged |>
   select(da002, cd001_w4_1_, bb001_w3_2, be001, bf006_w4_5_1, bg002_w4, fa002_w4, ga001, ga002, fn002_w4, ha000_w4_0, ea001_w4_s12, cb050_w3, hosp_10k, staff_10k) |>
+  filter(!is.na(da002)) |>
   mutate(living_area = haven::as_factor(bb001_w3_2)) |>
   mutate(marital_status = haven::as_factor(be001)) |>
   mutate(bg002_w4 = case_when(
@@ -143,6 +146,10 @@ lasso_rmse |>
 
 ## Mean RMSE across 10 folds
 mean(lasso_rmse$.estimate)
+
+
+
+
 
 ```
 
