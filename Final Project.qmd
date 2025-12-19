@@ -1,0 +1,148 @@
+---
+title: "Final Project"
+author: "He_Huang_Yang_Yu"
+format: html
+editor: visual
+editor_options: 
+  chunk_output_type: console
+execute:
+  warning: false
+  message: false
+embed-resources: true
+---
+
+# Variable selection rationale
+
+The objective of this analysis is to predict individual health status in a way that is informative for resource allocation, rather than for detailed household-level diagnosis. From a central-government perspective, the goal is to assess health needs without relying on costly and time-intensive household surveys. Accordingly, the model relies on general demographic and socio-economic characteristics that are routinely collected through administrative systems and are plausibly correlated with health outcomes. These include age, gender, marital status, living area (urban–rural classification), employment and retirement status, income and pension receipt, health insurance coverage, and number of children. These variables capture key life-course, labor market, and institutional dimensions that shape health risks and access to care, while remaining broadly observable and policy-relevant. In addition, the analysis incorporates province-level health resource indicators, specifically the number of hospitals and healthcare professionals per 10k population, to account for regional variation in healthcare supply.
+
+# Data cleaning and variable construction
+
+The raw CHARLS 2018 data were cleaned and transformed to produce a model-ready dataset suitable for machine-learning workflows. Variables imported with survey value labels were explicitly converted to appropriate formats to avoid unintended numeric interpretations. Categorical variables such as living area and marital status were converted to factor variables using their original survey labels, ensuring they would be treated as nominal predictors in the modeling stage. Binary survey responses (e.g., employment status, income receipt etc.), which were originally coded numerically, were recoded into consistent 0/1 indicators based on documented response categories. Original variables were preserved where necessary, and transformed variables were created explicitly to maintain transparency and reproducibility. This pre-processing strategy ensures that predictors are compatible with relevant machine learning pipelines such as dummy-variable generation.
+
+
+1. Import data, select variables, convert to variables, cleaning variables
+```{r}
+library(tidyverse)
+library(tidymodels)
+
+load("data/Final_2018Merged.RData")
+
+# da002: Self-Reported Health Status
+
+# cd001_w4_1_: Who Live with XConParName[1]
+# be002: Have a Partner Living Together
+
+# bb001_w3_2: Location of Residential Address
+
+# be001: Marital Status
+
+# bf006_w4_5_1: The Number of Children Under 18
+
+# bg002_w4: Religious Beliefs
+
+# fa002_w4: Nonfarm Work (for at Least One Hour Last Month) or Not
+# ga001: Receive Wage and Bonus Income
+# ga002: How Much Receive
+# fn002_w4: Receive/Participate Government/Institutions/Firm Pension
+# ha000_w4_0: Number of Houses
+
+# ea001_w4_s12: No Medical Insurance
+
+# cb050_w3: Number of Children
+
+# hosp_10k: Number of hospitals per 10k population
+# staff_10k: Number of health professionals per 10,000 population
+
+data <- Final_2018Merged |>
+  select(da002, cd001_w4_1_, bb001_w3_2, be001, bf006_w4_5_1, bg002_w4, fa002_w4, ga001, ga002, fn002_w4, ha000_w4_0, ea001_w4_s12, cb050_w3, hosp_10k, staff_10k) |>
+  mutate(living_area = haven::as_factor(bb001_w3_2)) |>
+  mutate(marital_status = haven::as_factor(be001)) |>
+  mutate(bg002_w4 = case_when(
+    as.numeric(bg002_w4) == 1 ~ 1,
+    as.numeric(bg002_w4) == 2 ~ 0)) |>
+  mutate(fa002_w4 = case_when(
+    as.numeric(fa002_w4) == 1 ~ 1,
+    as.numeric(fa002_w4) == 2 ~ 0)) |>
+  mutate(ga001 = case_when(
+    as.numeric(ga001) == 1 ~ 1,
+    as.numeric(ga001) == 2 ~ 0)) |>
+  mutate(fn002_w4 = case_when(
+    as.numeric(fn002_w4) == 1 ~ 1,
+    as.numeric(fn002_w4) == 2 ~ 0)) |>
+  mutate(ea001_w4_s12 = case_when(
+    as.numeric(ea001_w4_s12) == 12 ~ 1,
+    as.numeric(ea001_w4_s12) == 0 ~ 0))
+
+```
+
+
+# Machine learning methodology
+
+2. Model constructing
+```{r}
+set.seed(0202)
+
+## Split data
+data_split <- initial_split(data = data, prop = 0.8)
+data_train <- training(x = data_split)
+data_test <- testing(x = data_split)
+
+## Exploratory Data Analysis: GIS related
+
+
+## v-fold
+folds <- vfold_cv(data = data_train, v = 10, repeats = 1)
+
+# create a recipe
+data_rec <- 
+  recipe(da002 ~ ., data = data_train) %>%
+  step_unknown(all_nominal_predictors()) %>%
+  step_impute_median(all_numeric_predictors()) %>%
+  step_dummy(all_nominal_predictors())
+
+# Lasso prediction
+## create a tuning grid for lasso regularization, varying the regularization penalty
+lasso_grid <- grid_regular(penalty(), levels = 10)
+
+## Lasso specification
+lasso_mod <- linear_reg(
+  penalty = tune(), 
+  mixture = 1
+) %>%
+  set_engine("glmnet")
+
+## Lasso workflow
+lasso_wf <- workflow() %>%
+  add_recipe(data_rec) %>%
+  add_model(lasso_mod)
+
+## fit
+lasso_cv <- lasso_wf %>%
+  tune_grid(
+    resamples = folds,
+    grid = lasso_grid
+  )
+
+## Calculate RMSE
+lasso_rmse <- lasso_cv %>%
+  collect_metrics(summarize = FALSE) %>%
+  filter(.metric == "rmse")
+
+## Plot RMSE
+lasso_rmse |>
+  group_by(id) |>
+  summarize(RMSE = mean(.estimate)) |>
+  ggplot(aes(x = id, y = RMSE)) +
+  geom_point() +
+  labs(
+    x = "Fold id",
+    y = "RMSE",
+    title = "Lasso RMSE Across Penalty Values"
+  ) +
+  theme_minimal()
+
+## Mean RMSE across 10 folds
+mean(lasso_rmse$.estimate)
+
+```
+
