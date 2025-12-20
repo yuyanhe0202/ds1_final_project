@@ -1,4 +1,4 @@
-## Georgetown University PPOL-6803, Intro to Data Science Final Project: An Analysis of xxx
+## Georgetown University PPOL-6803, Intro to Data Science Final Project: China Aging Population Analysis: A Machine Learning Method of Health Status Prediction
 
 He, Yuyan (@yuyanhe0202, email: yh915@georgetown.edu); 
 Huang, Grace (@gracehuang-xjh, email: yh872@georgetown.edu); 
@@ -62,7 +62,6 @@ CHARLS Dataset was retrieved from: https://charls.pku.edu.cn/en/
 
 This folder contains all `.png` figures produced in the analysis:
 
--  `importance_lasso.png`: Plot used for checking variable importance of Lasso classification model.
 -  `importance_rf.png`: Plot used for checking variable importance of Random Forest regression model.
 -  `importance_rf_age.png`: Plot used for checking variable importance of final Random Forest regression model by age group and variable category.
 -  `china_gdp.png`: Plot of China GDP using GIS package
