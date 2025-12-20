@@ -13,31 +13,31 @@ embed-resources: true
 
 # Background
 
-China is experiencing rapid population aging, raising growing concerns about how to assess and anticipate health risks among middle-aged and older adults. While individual health conditions are typically measured through surveys or clinical assessments, such approaches are time-consuming and costly at scale. An alternative perspective is to ask whether individual health status can be reasonably inferred from information that is already observable at more aggregated or administrative levels, such as demographic characteristics, socioeconomic conditions, and regional context. Self-reported health is a widely used indicator that reflects both physical health and broader living conditions, making it a suitable outcome for exploring this predictive possibility.
+China is experiencing rapid population aging, raising concerns about how to assess and anticipate health risks among middle-aged and older adults. Although health conditions can be measured through surveys or clinical assessments, these approaches are often time-consuming and costly to implement at scale. This motivates a practical question for policy: can individual health risk be reasonably inferred from information that is routinely observable in survey or administrative settings, such as demographic characteristics, socioeconomic conditions, and regional context? Self-rated health (SRH) is well-suited for this purpose because it captures not only perceived physical health but also broader living conditions and well-being. In the Chinese context, SRH has been shown to be a reliable and meaningful indicator, with consistent associations with objective health measures (Qi, 2014), and prior studies using the China Health and Retirement Longitudinal Study (CHARLS) have documented systematic determinants of SRH across demographic and socioeconomic groups (Zhang et al., 2021).
 
-Using data from the 2018 wave of the China Health and Retirement Longitudinal Study (CHARLS), this project adopts a predictive approach to examine self-reported health among middle-aged and older adults in China. The analysis focuses on assessing how accurately individual self-reported health can be predicted using observable demographic, socioeconomic, and health-related characteristics. The central research question is: which individual characteristics are most informative for predicting self-reported health, and how well can overall health status be predictedusing variables that are commonly available in survey or administrative data?
+Using data from the 2018 wave of CHARLS, this project adopts a predictive approach to examine SRH among middle-aged and older adults in China (Zhao et al., 2020). Our central research question is: which individual characteristics are most important for predicting self-reported health, and how well can overall health status be predicted using variables that are commonly available in survey or administrative data? This framing aligns with recent work that uses machine learning to predict SRH and interpret the relative importance of predictors to inform health equity and resource planning (Clark et al., 2021).
 
-The analysis begins with exploratory data analysis (EDA) to describe the distribution of self-reported health and key covariates. In this stage, the project visualizes provincial-level GDP, average self-reported health, and income measures. These visualizations serve as a simple descriptive check, based on the common observation that regions with stronger economic conditions tend to exhibit better average health outcomes. The spatial patterns help establish an intuitive baseline for understanding regional disparities before moving to individual-level prediction.
-
-Building on these descriptive patterns, the project adopts a predictive framework to assess how well individual self-reported health can be predicted using observable demographic, socioeconomic, and access to healthcare variables. Supervised machine learning methods are applied to train multiple models and compare them using out-of-sample performance metrics. This approach allows for an evaluation of both overall predictive accuracy and the relative importance of different types of predictors.
-
-Overall, the project combines exploratory spatial analysis with predictive modeling to examine whether individual health risks can be inferred from information that is already available at broader levels, such as household registration, socioeconomic status, or provincial context. From a policy perspective, this approach highlights the potential to approximate individual health conditions without relying solely on extensive field surveys or frequent individual-level data collection. In the context of rapid population aging in China, such predictive insights may help governments identify high-risk populations more efficiently and support more timely health planning and resource allocation at the regional level.
+Building on these descriptive patterns, we apply supervised machine learning methods to predict SRH using demographic, socioeconomic, and healthcare-access-related variables, and compare models using out-of-sample performance metrics. This allows us to evaluate both predictive accuracy and the relative contribution of different types of predictors, consistent with the interpretability-oriented ML approach in prior SRH prediction research (Clark et al., 2021). From a policy perspective, our goal is not clinical diagnosis, but rather to assess whether readily available information can help identify higher-risk populations efficiently, supporting more timely health planning and resource allocation in an aging society.
 
 # Data Source and Outcome Definition
 
-The analysis uses data from the 2018 wave of the China Health and Retirement Longitudinal Study (CHARLS), a nationally representative survey of Chinese residents aged 45 and above. CHARLS employs a stratified, multi-stage probability sampling design and provides survey weights to ensure representativeness of the target population. The 2018 wave covers 28 provinces in China, excluding Ningxia, Tibet, and Hainan from the sampling frame. In addition, provincial-level GDP and healthcare resource data from the National Bureau of Statistics of China are merged with the cleaned CHARLS dataset to construct a unified analytical dataset.
+The analysis uses data from the 2018 wave of CHARLS, a nationally representative survey of Chinese residents generally aged 45 and above. CHARLS employs a stratified, multi-stage probability sampling design and provides survey weights to ensure representativeness of the target population (Zhao et al., 2020). The 2018 wave covers 28 provinces in China, excluding Ningxia, Tibet, and Hainan from the sampling frame. We also merge province-level GDP and healthcare resource indicators from the National Bureau of Statistics of China to incorporate regional economic and healthcare context (NBS, 2018).
 
-The analysis focuses on the 2018 wave rather than the 2020 wave because the latter coincides with the COVID-19 pandemic, during which self-reported health may reflect short-term, system-wide shocks. Using 2018 data allows the study to examine individual health perceptions under relatively stable social and health-system conditions.
+We focus on the 2018 wave rather than the 2020 wave because the latter coincides with the COVID-19 pandemic, during which SRH may reflect short-term system-wide shocks rather than baseline health perceptions. Using 2018 data allows us to examine SRH under relatively stable social and health-system conditions (Zhao et al., 2023).
 
-The outcome of interest is self-reported health status, measured by the CHARLS survey variable da002. Respondents are asked to rate their overall health on a five-point ordinal scale: very good, good, fair, poor, or very poor. This variable captures individuals’ subjective assessment of their general health and is widely used in studies of aging and population health. For the purpose of predictive modeling, da002 is transformed into two alternative target variables: a three-category outcome that groups responses into good, medium, and bad health, and a binary outcome that classifies respondents into good versus bad health.
+The outcome of interest is SRH, measured by the CHARLS survey variable da002. Respondents rate their overall health on a five-point ordinal scale (very good, good, fair, poor, very poor). This measure captures individuals’ subjective assessment of general health and is widely used in aging and population health research; in China, SRH has also been shown to have strong validity relative to objective health indicators (Qi, 2014). For classification modeling purpose, da002 is also transformed into a binary outcome that classifies respondents into good versus bad health, consistent with common practice in SRH prediction studies that prioritize interpretability and policy-relevant classification (Clark et al., 2021).
 
 # Variable selection rationale
 
-The objective of this analysis is to predict individual health status in a way that is informative for resource allocation, rather than for detailed household-level diagnosis. From a central-government perspective, the goal is to assess health needs without relying on costly and time-intensive household surveys. Accordingly, the model relies on general demographic and socio-economic characteristics that are routinely collected through administrative systems and are plausibly correlated with health outcomes. These include age, gender, marital status, living area (urban–rural classification), employment and retirement status, income and pension receipt, health insurance coverage, and number of children. These variables capture key life-course, labor market, and institutional dimensions that shape health risks and access to care, while remaining broadly observable and policy-relevant. In addition, the analysis incorporates province-level health resource indicators, specifically the number of hospitals and healthcare professionals per 10k population, to account for regional variation in healthcare supply.
+The objective of this analysis is to predict SRH in a way that is informative for public resource allocation rather than detailed household-level diagnosis. From a central-government perspective, the goal is to assess health needs without relying solely on costly and time-intensive surveys. Accordingly, the model relies on general demographic and socioeconomic characteristics that are routinely collected through administrative systems and are plausibly correlated with health outcomes. These include age, gender, marital status, living area (urban–rural classification), employment and retirement status, income and pension receipt, health insurance coverage, and number of children. These variables reflect key life-course, labor market, and institutional dimensions that shape health risk and access to care, and they are also consistent with prior empirical work on SRH determinants in older populations (Zhang et al., 2021). In addition, our emphasis on widely observable predictors is aligned with ML-based SRH research that evaluates how standard demographic and socioeconomic features contribute to prediction performance and interpretability (Clark et al., 2021).
+
+To capture regional differences in healthcare supply, we also incorporate province-level health resource indicators, specifically the number of hospitals and healthcare professionals per 10,000 population (NBS, 2018). These measures allow the model to reflect structural variation in access to healthcare across provinces, above and beyond individual-level characteristics.
 
 # Data cleaning and variable construction
 
-The raw CHARLS 2018 data were cleaned and transformed to produce a model-ready dataset suitable for machine-learning workflows. Variables imported with survey value labels were explicitly converted to appropriate formats to avoid unintended numeric interpretations. Categorical variables such as living area and marital status were converted to factor variables using their original survey labels, ensuring they would be treated as nominal predictors in the modeling stage. Binary survey responses (e.g., employment status, income receipt etc.), which were originally coded numerically, were recoded into consistent 0/1 indicators based on documented response categories. Original variables were preserved where necessary, and transformed variables were created explicitly to maintain transparency and reproducibility. This pre-processing strategy ensures that predictors are compatible with relevant machine learning pipelines such as dummy-variable generation.
+The raw CHARLS 2018 data were cleaned and transformed into a model ready dataset suitable for machine learning workflows. Variables imported with survey value labels were converted to appropriate formats to avoid unintended numeric interpretations. Categorical variables such as living area and marital status were converted to factor variables using their original survey labels, ensuring they were treated as nominal predictors during modeling. Binary survey responses, such as employment status and income receipt, were recoded into consistent 0 and 1 indicators based on documented response categories (Zhao et al., 2020).
+
+To maintain transparency and reproducibility, we preserved original variables where needed and created transformed variables explicitly rather than overwriting the raw fields. This preprocessing strategy ensured compatibility with standard modeling pipelines, including dummy variable generation for categorical predictors and consistent handling of missingness and invalid values.
 
 1.  Import data, select variables, convert to variables, cleaning variables
 
@@ -106,7 +106,29 @@ data <- Final_2018Merged |>
 
 # Machine learning methodology
 
-To investigate the drivers of health status, we implemented a machine learning pipeline that integrated individual survey weights to ensure national representativeness. The data was split into an 80% training set and a 20% test set, with model performance optimized through 10-fold cross-validation. We evaluated both LASSO and Random Forest architectures across two distinct frameworks: continuous regression using the 5-point survey scale and categorical classification. In the classification approach, we initially categorized health status into three levels (Bad, Fair, and Good), but this yielded a low accuracy of approximately 0.50. Reflecting Chinese cultural traditions where "Fair" is often a polite proxy for "Not Good," we re-categorized the outcome into a binary Good/Bad classification, which significantly improved accuracy.
+To investigate the research question, which individual characteristics are most important for predicting self-rated health and how well health status can be predicted using commonly available variables, we implemented a machine learning workflow that incorporated individual survey weights to improve national representativeness (Zhao et al., 2020). The data were split into an 80 percent training set and a 20 percent test set. Model tuning and model selection were conducted using cross validation on the training set, and final performance was assessed on the held-out test set to reduce the risk of overfitting (Choi & Jung, 2025).
+
+[*Why LASSO and Random Forest*]{.underline}
+
+We focused on two complementary methods, LASSO and Random Forest, because they align with both components of our research question, prediction performance and interpretability.
+
+First, LASSO provides an interpretable baseline model with built in feature selection. By shrinking weaker coefficients toward zero, it highlights a smaller set of predictors that contribute most to prediction, which directly supports our goal of identifying the most informative individual characteristics (Clark et al., 2021; Choi & Jung, 2025).
+
+Second, Random Forest captures nonlinear relationships and interactions that are likely present in subjective health assessments, while also providing model-based measures of variable importance. This allows us to compare not only predictive accuracy but also the ranking of key predictors under a flexible nonparametric model (Clark et al., 2021; Choi & Jung, 2025).
+
+Both methods have been used in prior work to predict self-rated health and related outcomes, and the literature highlights their complementary strengths, transparency and feature selection for LASSO, and strong predictive performance and importance ranking for Random Forest (Clark et al., 2021; Choi & Jung, 2025).
+
+[*Regression and classification frameworks*]{.underline}
+
+We evaluated both a regression framework and a classification framework.
+
+1.  Regression framework
+
+We treated the original five category SRH measure as an ordinal numeric outcome and fit models that predict SRH on its original scale, then evaluated performance using RMSE.
+
+2.  Classification framework
+
+Following common practice in SRH prediction research that uses binary thresholds to improve interpretability and reduce ambiguity, we recoded SRH into a binary good versus bad outcome (Clark et al., 2021; Choi & Jung, 2025).
 
 2.0 Get data
 
@@ -441,12 +463,12 @@ rf_wf_cat <- workflow() |>
 rf_resamples_cat <- rf_wf_cat |>
   fit_resamples(resamples = folds)
 
-## Calculate RMSE
+## Calculate accuracy
 rf_acc <- rf_resamples_cat %>%
   collect_metrics(summarize = FALSE) %>%
   filter(.metric == "accuracy")
 
-## Plot RMSE
+## Plot accuracy
 rf_acc |>
   ggplot(aes(x = id, y = .estimate)) +
   geom_point() +
@@ -460,43 +482,17 @@ rf_acc |>
 ## Mean Accuracy across 10 folds
 mean(rf_acc$.estimate)
 
-# --------Model choose, final fit and check variable importance
-# Lasso model has the higher accuracy in the classification approach; 
-# we would therefore check the best fit model using the Lasso model
-
-## select the best model based on the "accuracy" metric
-lasso_best <- lasso_cv_cat %>%
-  select_best(metric = "accuracy")
-
-## finalize lasso workflow and the best model 
-lasso_final <- finalize_workflow(
-  lasso_wf_cat,
-  parameters = lasso_best
-)
-
-## fit to the training data and extract coefficients
-lasso_coefs <- lasso_final %>%
-  fit(data = data_train) %>%
-  extract_fit_parsnip() %>%
-  vi()
-
-## check important predictors and plot
-lasso_coefs |>
-  mutate(Variable = reorder(Variable, Importance)) |>
-  ggplot(aes(x = Importance, y = Variable)) +
-  geom_col() +
-  labs(
-    title = "Variable Importance: Lasso Model") +
-  facet_grid(~ Sign) +
-  theme_minimal()
-
-ggsave(filename = "graph/importance_lasso.png")
-
 ```
 
 # Final model choose
 
-In the regression analysis, which preserved the original granularity of the 5-point health scale, the Random Forest model outperformed the LASSO regression by achieving a lower Root Mean Square Error (RMSE). Conversely, in the classification task—where health status was grouped into discrete "good" and "bad" categories, the LASSO model yielded slightly higher accuracy. While both modeling strategies produced broadly consistent results, the classification approach relies on a subjective threshold for health categorization that may sacrifice nuance or introduce bias. Therefore, to ensure the most robust and objective estimation of health outcomes, we selected the Random Forest regression as our final model for evaluation against the test dataset.
+Random Forest has better performance across regression and classification pipeline.In the Regression task, where we kept the full 5-point scale, the Random Forest was the winner, achieving a lower average RMSE. In the Classification task, the results are very similar across the two models; the Random Forest model yielded slightly higher accuracy of 75%.
+
+Originally, the health status was set to 3 classes, good, fair and bad. And running for 3 classes, both models generated accuracy around 50% which is basically like flipping a coin. We then updated the middle category to bad, which reflects a Chinese habit where "Fair" is often a polite proxy for "Not Good", and the performance improved consequently. However, we have to consider the 'cost' of that improvement in accuracy: classification requires us to set a subjective threshold for what counts as 'good' or 'bad' health. This can introduce bias and hide nuances in the data. 
+
+Therefore, to maintain the most objective and robust estimation of health, we selected Random Forest with Regression mode as our final model for evaluation against the test dataset. We fitted the final model to the test data and we got similar RMSE, which proves the robustness of the model.
+
+After fitting the test data, we generated similar RMSE as in the training data, indicating robustness of the final model. 
 
 3.  Fit the final model, check result
 
@@ -515,15 +511,23 @@ rmse(test_pred, truth = da002, estimate = .pred)
 
 ## Deep-dive into the final model
 
-Following the selection of the Random Forest as our final model, we observed that age and healthcare resources emerged as the most significant predictors of health status. Based on this, we conducted a two-part follow-up analysis to investigate the age, healthcare resources and their relationship with health status.
+After selecting the Random Forest regression as our final model, we examined variable importance to understand which predictors contributed most to SRH prediction. Age and province level healthcare resources emerged as leading predictors. Motivated by this finding, we conducted two parts follow up analysis to further explore the role of healthcare resources and how predictor importance shifts across life stages.
 
-First, we examined whether the geographical distribution of healthcare resources follows a similar pattern to general health status. This analysis seeks to determine if areas with higher resource density (hospital and staff availability) correspond to regions with superior health outcomes, or if significant gaps exist where resource allocation fails to match the population's health needs.
+[*Part 1: Healthcare resources and geographic patterns*]{.underline}
 
-Second, we analyzed how the drivers of health shift across different life stages. We divided the sample into four quartiles — Younger, Young to middle, Middle to elder, and Elderly — and re-evaluated importance within three categorized domains: Demographic: Age, sex, marital status, living with a partner, number of family members, and religion. Socio-economic: Income, pension, farming status, living area (urban/rural), and real-estate ownership. Healthcare resources: Hospital density per 10k, healthcare professionals per 10k, and medical insurance coverage.
+First, we assessed whether the geographic distribution of healthcare resources mirrors the spatial distribution of SRH. Using our GIS visualizations, we compared provincial patterns in SRH with hospital density and the number of healthcare professionals per 10,000 people (NBS, 2018). This analysis evaluates whether provinces with greater healthcare capacity also tend to show better average self-rated health, and it helps identify potential mismatches where resource availability does not align with observed health needs.
 
-The four groups of age were divided per sample distribution. Similar subgroup size ensures the comparability of important scores across group, and thanks to the balanced sampling of CHARLS dataset, the four groups are also good representatives of intuitive population stratification of younger, close to retirement, retired and elderly.
+[*Part 2: How predictors change across age groups*]{.underline}
 
-From the results, 1. Health status and healthcare resources are indeed related from the GIS visualization we generated. But still, healthcare resources are very tightly bundled with socio-economic level. 2. We've found that as the group ages, healthcare resources would replace socio-economic as the most important predictor of health status. The importance of demographic variables also arises. We could probably conclude therefore that systematic support from society and family are more important than economic status in terms of physical and mental health for elderly.
+Second, we examined whether the drivers of SRH prediction differ by age. We divided the sample into four age quartiles, younger, young to middle, middle to older, and elderly, and re estimated importance within three grouped domains:
+
+1.  Demographic: age, sex, marital status, living with a partner, number of family members, and religion
+2.  Socioeconomic: income, pension, farming status, living area, and real estate ownership
+3.  Healthcare resources: hospital density per 10,000, healthcare professionals per 10,000, and medical insurance coverage
+
+Because the quartiles are defined by the sample distribution, subgroup sizes are balanced, which improves comparability of importance scores across age groups. Given the balanced sampling design of CHARLS, these quartiles also provide a useful approximation of life course stages, including younger adults in the CHARLS frame, near retirement adults, retirees, and older elderly (Zhao et al., 2020).
+
+Across analyses, we observed two consistent patterns. First, SRH and healthcare resources show aligned geographic patterns in the visualizations, but healthcare resources are also closely correlated with broader socioeconomic development at the provincial level (NBS, 2018). Second, as age increases, healthcare resource indicators become relatively more important than socioeconomic variables for predicting SRH, while demographic factors also rise in importance. This suggests that for older adults, access to healthcare capacity and broader support conditions may matter at least as much as individual socioeconomic position in shaping perceived health status, consistent with prior work emphasizing the multifaceted determinants of SRH (Clark et al., 2021).
 
 4.  Deep-dive into the final model
 
@@ -656,26 +660,32 @@ ggsave(filename = "graph/importance_rf_age.png")
 
 # Summary
 
-This project implements a predictive workflow that links exploratory spatial analysis with machine learning models to assess patterns in self-reported health. Provincial-level visualizations of GDP, income, and average self-reported health are first used to summarize broad regional patterns. These descriptive results provide context for the subsequent supervised classification models, which are evaluated using out-of-sample performance and variable importance across different outcome definitions and age groups.
+## **Methodological Strengths**
 
-## Methodological Strengths
+This project has several methodological strengths.
 
-The project has several methodological strengths. First, the project incorporates a GIS-based mapping workflow using the chinamap package, which provides standardized mappings between provincial identifiers and China’s administrative boundaries. This allows province-level measures of GDP, income, and average self-reported health to be accurately linked to geographic units and visualized on a national map. The resulting spatial visualizations add a structured descriptive layer that complements the individual-level predictive analysis.
+First, it integrates a GIS based mapping workflow using the chinamap package, which provides standardized mappings between provincial identifiers and administrative boundaries in China. This allows province level measures of GDP, healthcare resources, which are out-sample information, as well as income, and average self-rated health to be consistently linked to geographic units and visualized on a national map. The resulting spatial visualizations add an interpretable descriptive layer that complements the individual level predictive analysis.
 
-Second, the project adopts a modeling approach stratified by age group, motivated by prior literature. The analysis stratifies the sample into four age groups, fits models within each group, and visualizes the aggregated importance of variable domains. These visualizations facilitate comparison of which types of factors are most informative for predicting self-reported health across different segments of the middle-aged and older population.
+Second, the project adopts an age stratified modeling approach to examine heterogeneity in predictors across life stages. We divide the sample into four age groups, fit models within each group, and summarize the relative importance of grouped predictor domains. This design supports the project’s research question by making it possible to compare whether socioeconomic factors, demographic factors, or healthcare context contributes more to prediction in different age segments. The approach also aligns with prior work emphasizing that determinants of self-rated health can vary across the life course (Clark et al., 2021; Zhang et al., 2021).
 
-Finally, the project explores alternative outcome constructions by transforming the original five-category self-reported health variable into both a multi-category and a binary classification target. This allows for robustness checks across classification settings and demonstrates how prediction performance and variable importance change when the outcome definition is simplified.
+Third, the project evaluates alternative outcome constructions by transforming the original five category self-rated health measure into both a multi category classification target and a binary classification target. Comparing results across outcome definitions functions as a robustness check and clarifies how predictive performance and variable importance change when the outcome is simplified for interpretability.
 
-## Limitation
+## **Limitation**
 
-Several limitations should be acknowledged. First, a nontrivial number of variables contain missing values, which reduces the effective sample size and may affect model stability. While standard data cleaning procedures are applied, missingness may still introduce bias if it is systematically related to health status or socioeconomic conditions.
+Several limitations should be acknowledged.
 
-Second, some contextual variables are only available at the provincial level and are relatively coarse in spatial resolution. Covariates such as hospitals or health resources per 10,000 people may mask substantial within-province heterogeneity, particularly in large and economically diverse provinces. As a result, regional variables may have limited predictive power at the individual level.
+First, missing values are present in several variables, which reduces the effective sample size and may affect model stability. Although standard cleaning procedures are applied, missingness can still introduce bias if it is systematically related to health status or socioeconomic conditions.
 
-Finally, the analysis is cross-sectional and focuses on a single pre-pandemic year. The models capture associations relevant to 2018 conditions but do not account for dynamic health trajectories or changes over time. Consequently, the results should not be interpreted as evidence about long-term health evolution or causal effects.
+Second, some contextual covariates are available only at the provincial level and are therefore coarse in spatial resolution. Indicators such as hospitals or healthcare professionals per 10,000 people can mask substantial within province heterogeneity, especially in large and economically diverse provinces. As a result, province level variables may capture broad development patterns but may not fully represent the local healthcare access that individuals face.
 
-## Significance
+Third, the analysis is cross sectional and focuses on a single pre pandemic year. The models describe associations under 2018 conditions and do not capture health trajectories over time. Therefore, results should not be interpreted as causal effects or as evidence about long run health dynamics.
 
-The analysis reveals clear regional disparities in economic conditions and average self-reported health, with more developed coastal provinces generally exhibiting higher income levels and better average health than inland regions. At the individual level, the predictive models achieve meaningful out-of-sample performance, indicating that observable demographic and socioeconomic characteristics contain substantial information about perceived health status.
+Finally, because self-rated health is a subjective measure, it may reflect differences in reporting behavior in addition to differences in underlying health. This is particularly relevant when comparing groups or regions if expectations and reference points differ, even when objective health burdens are similar (Qi, 2014).
 
-From a policy perspective, the results demonstrate that routinely collected demographic and socioeconomic data contain sufficient information to approximate individual health risks, reducing reliance on frequent or costly health assessments and helping save both time and financial resources in large-scale health monitoring. Predictive models of this kind can help governments and health agencies identify populations that are more likely to report poor health and prioritize monitoring or preventive interventions. Moreover, the pronounced age heterogeneity in predictor importance underscores the value of age-targeted health strategies, as the types of information most relevant for assessing health risks differ systematically across stages of later life.
+## **Significance**
+
+The analysis identifies clear regional differences in economic conditions and average self-rated health, with more developed coastal provinces generally showing higher income levels and better average self-rated health than inland regions. At the individual level, the predictive models achieve meaningful held out performance, suggesting that routinely observed demographic and socioeconomic characteristics contain substantial information about perceived health status. This finding is consistent with prior evidence that self-rated health is systematically related to social and economic conditions and can be predicted using standard survey features (Clark et al., 2021; Fan & He, 2022).
+
+From a policy perspective, the results suggest that administrative and survey variables that are already widely collected can support approximate screening of population health risk, reducing reliance on frequent or costly health assessments in large scale monitoring. Predictive models of this kind can help governments and health agencies identify populations that are more likely to report poor health and prioritize monitoring, outreach, or preventive interventions.
+
+In addition, the age stratified results highlight meaningful heterogeneity in predictor importance, implying that the most informative signals of health risk differ across stages of later life. This supports the value of age targeted strategies for health planning and resource allocation, especially in rapidly aging settings.
