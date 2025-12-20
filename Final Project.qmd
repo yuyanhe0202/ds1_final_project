@@ -24,6 +24,7 @@ The raw CHARLS 2018 data were cleaned and transformed to produce a model-ready d
 ```{r}
 library(tidyverse)
 library(tidymodels)
+library(vip)
 
 load("data/Final_2018Merged.RData")
 
@@ -56,10 +57,14 @@ load("data/Final_2018Merged.RData")
 
 # select only the variables needed
 data <- Final_2018Merged |>
-  select(da002, cd001_w4_1_, bb001_w3_2, be001, bf006_w4_5_1, bg002_w4, fa002_w4, ga001, ga002, fn002_w4, ha000_w4_0, ea001_w4_s12, cb050_w3, hosp_10k, staff_10k) |>
+  select(ID, da002, ba000_w2_3, ba004_w3_1, cd001_w4_1_, bb001_w3_2, be001, bf006_w4_5_1, bg002_w4, fa002_w4, ga001, ga002, fn002_w4, ha000_w4_0, ea001_w4_s12, cb050_w3, hosp_10k, staff_10k, INDV_weight_ad2) |>
   filter(!is.na(da002)) |>
   mutate(living_area = haven::as_factor(bb001_w3_2)) |>
   mutate(marital_status = haven::as_factor(be001)) |>
+  mutate(male = case_when(
+    as.numeric(ba000_w2_3) == 1 ~ 1,
+    as.numeric(ba000_w2_3) == 2 ~ 0)) |>
+  mutate(age = 2018 - ba004_w3_1) |>
   mutate(bg002_w4 = case_when(
     as.numeric(bg002_w4) == 1 ~ 1,
     as.numeric(bg002_w4) == 2 ~ 0)) |>
@@ -73,15 +78,21 @@ data <- Final_2018Merged |>
     as.numeric(fn002_w4) == 1 ~ 1,
     as.numeric(fn002_w4) == 2 ~ 0)) |>
   mutate(ea001_w4_s12 = case_when(
-    as.numeric(ea001_w4_s12) == 12 ~ 1,
-    as.numeric(ea001_w4_s12) == 0 ~ 0))
+    as.numeric(ea001_w4_s12) == 0 ~ 1,
+    as.numeric(ea001_w4_s12) == 12 ~ 0)) |>
+  mutate(health_cat = case_when(
+    as.numeric(da002) == 1 ~ "bad",
+    as.numeric(da002) == 2 ~ "bad",
+    as.numeric(da002) == 3 ~ "bad",
+    as.numeric(da002) == 4 ~ "good",
+    as.numeric(da002) == 5 ~ "good"))
 
 ```
 
 
 # Machine learning methodology
 
-2. Model constructing
+2.1 Using regression pipelines
 ```{r}
 set.seed(0202)
 
@@ -99,6 +110,7 @@ folds <- vfold_cv(data = data_train, v = 10, repeats = 1)
 # create a recipe
 data_rec <- 
   recipe(da002 ~ ., data = data_train) %>%
+  step_rm(health_cat, bb001_w3_2, be001) %>%
   step_unknown(all_nominal_predictors()) %>%
   step_impute_median(all_numeric_predictors()) %>%
   step_dummy(all_nominal_predictors())
@@ -148,8 +160,197 @@ lasso_rmse |>
 mean(lasso_rmse$.estimate)
 
 
+# ----------Random Forest prediction--------------
+rf_mod <- rand_forest() |>
+  set_mode(mode = "regression") |>
+  set_engine(
+    engine = "ranger", 
+    importance = "impurity",
+    num.threads = 4
+  )
+
+## Random forest workflow
+rf_wf <- workflow() |>
+  add_recipe(data_rec) |>
+  add_model(rf_mod)
+
+## fit
+rf_resamples <- rf_wf |>
+  fit_resamples(resamples = folds)
+
+## Calculate RMSE
+rf_rmse <- rf_resamples %>%
+  collect_metrics(summarize = FALSE) %>%
+  filter(.metric == "rmse")
+
+## Plot RMSE
+rf_rmse |>
+  ggplot(aes(x = id, y = .estimate)) +
+  geom_point() +
+  labs(
+    x = "Fold id",
+    y = "RMSE",
+    title = "Random Forest RMSE Across Penalty Values"
+  ) +
+  theme_minimal()
+
+## Mean RMSE across 10 folds
+mean(rf_rmse$.estimate)
+
+
+# --------Model choose, final fit and check variable importance
+# Random Forest model has the lower RMSE in the regression approach; 
+# we would therefore check the best fit model using the RF model
+
+## select the best model based on the "rmse" metric
+rf_best <- rf_resamples %>%
+  select_best(metric = "rmse")
+
+# finalize random forest workflow and the best model 
+rf_final <- finalize_workflow(rf_wf, rf_best) %>% 
+  fit(data = data_train)
+
+## important predictors for rf model
+rf_final |>
+  extract_fit_parsnip() |>
+  vip() + 
+  labs(title = "Variable Importance: Random Forest Model") +
+  theme_minimal()
+
+# ggsave(filename = "importance_rf.png")
+```
+
+
+2.2 Using classification pipelines
+```{r}
+# Treat health status as bad, fair and good
+# create a new recipe
+data_rec_cat <- 
+  recipe(health_cat ~ ., data = data_train) %>%
+  step_rm(da002, bb001_w3_2, be001) %>%
+  step_unknown(all_nominal_predictors()) %>%
+  step_impute_median(all_numeric_predictors()) %>%
+  step_dummy(all_nominal_predictors())
+
+# --------Lasso specification------
+lasso_mod_cat <- multinom_reg(
+  penalty = tune(), 
+  mixture = 1
+) %>%
+  set_engine("glmnet") %>%
+  set_mode("classification")
+
+## Lasso workflow
+lasso_wf_cat <- workflow() %>%
+  add_recipe(data_rec_cat) %>%
+  add_model(lasso_mod_cat)
+
+## fit
+lasso_cv_cat <- lasso_wf_cat %>%
+  tune_grid(
+    resamples = folds,
+    grid = lasso_grid
+  )
+
+## check accuracy
+lasso_acc <- lasso_cv_cat %>%
+  collect_metrics(summarize = FALSE) %>%
+  filter(.metric == "accuracy")
+
+## Plot accuracy
+lasso_acc |>
+  group_by(id) |>
+  summarize(accuracy = mean(.estimate)) |>
+  ggplot(aes(x = id, y = accuracy)) +
+  geom_point() +
+  labs(
+    x = "Fold id",
+    y = "accuracy",
+    title = "Lasso Accuracy Across Penalty Values"
+  ) +
+  theme_minimal()
+
+mean(lasso_acc$.estimate)
+
+# Random Forest prediction
+rf_mod_cat <- rand_forest() |>
+  set_mode(mode = "classification") |>
+  set_engine(
+    engine = "ranger", 
+    importance = "impurity",
+    num.threads = 4
+  )
+
+# --------Random forest workflow-----------
+rf_wf_cat <- workflow() |>
+  add_recipe(data_rec_cat) |>
+  add_model(rf_mod_cat)
+
+## fit
+rf_resamples_cat <- rf_wf_cat |>
+  fit_resamples(resamples = folds)
+
+## Calculate RMSE
+rf_acc <- rf_resamples_cat %>%
+  collect_metrics(summarize = FALSE) %>%
+  filter(.metric == "accuracy")
+
+## Plot RMSE
+rf_acc |>
+  ggplot(aes(x = id, y = .estimate)) +
+  geom_point() +
+  labs(
+    x = "Fold id",
+    y = "Accuracy",
+    title = "Random Forest Accuracy Across Penalty Values"
+  ) +
+  theme_minimal()
+
+## Mean Accuracy across 10 folds
+mean(rf_acc$.estimate)
+
+# --------Model choose, final fit and check variable importance
+# Lasso model has the higher accuracy in the classification approach; 
+# we would therefore check the best fit model using the Lasso model
+
+## select the best model based on the "accuracy" metric
+lasso_best <- lasso_cv_cat %>%
+  select_best(metric = "accuracy")
+
+## finalize lasso workflow and the best model 
+lasso_final <- finalize_workflow(
+  lasso_wf_cat,
+  parameters = lasso_best
+)
+
+## fit to the training data and extract coefficients
+lasso_coefs <- lasso_final %>%
+  fit(data = data_train) %>%
+  extract_fit_parsnip() %>%
+  vi()
+
+## check important predictors and plot
+lasso_coefs |>
+  mutate(Variable = reorder(Variable, Importance)) |>
+  ggplot(aes(x = Importance, y = Variable)) +
+  geom_col() +
+  labs(
+    title = "Variable Importance: Lasso Model") +
+  facet_grid(~ Sign) +
+  theme_minimal()
+
+# ggsave(filename = "importance_lasso.png")
+
+```
+
+
+
+```{r}
+
 
 
 
 ```
+
+
 
