@@ -11,6 +11,26 @@ execute:
 embed-resources: true
 ---
 
+# Background
+
+China is experiencing rapid population aging, raising growing concerns about how to assess and anticipate health risks among middle-aged and older adults. While individual health conditions are typically measured through surveys or clinical assessments, such approaches are time-consuming and costly at scale. An alternative perspective is to ask whether individual health status can be reasonably inferred from information that is already observable at more aggregated or administrative levels, such as demographic characteristics, socioeconomic conditions, and regional context. Self-reported health is a widely used indicator that reflects both physical health and broader living conditions, making it a suitable outcome for exploring this predictive possibility.
+
+Using data from the 2018 wave of the China Health and Retirement Longitudinal Study (CHARLS), this project adopts a predictive approach to examine self-reported health among middle-aged and older adults in China. The analysis focuses on assessing how accurately individual self-reported health can be predicted using observable demographic, socioeconomic, and health-related characteristics. The central research question is: which individual characteristics are most informative for predicting self-reported health, and how well can overall health status be predictedusing variables that are commonly available in survey or administrative data?
+
+The analysis begins with exploratory data analysis (EDA) to describe the distribution of self-reported health and key covariates. In this stage, the project visualizes provincial-level GDP, average self-reported health, and income measures. These visualizations serve as a simple descriptive check, based on the common observation that regions with stronger economic conditions tend to exhibit better average health outcomes. The spatial patterns help establish an intuitive baseline for understanding regional disparities before moving to individual-level prediction.
+
+Building on these descriptive patterns, the project adopts a predictive framework to assess how well individual self-reported health can be predicted using observable demographic, socioeconomic, and access to healthcare variables. Supervised machine learning methods are applied to train multiple models and compare them using out-of-sample performance metrics. This approach allows for an evaluation of both overall predictive accuracy and the relative importance of different types of predictors.
+
+Overall, the project combines exploratory spatial analysis with predictive modeling to examine whether individual health risks can be inferred from information that is already available at broader levels, such as household registration, socioeconomic status, or provincial context. From a policy perspective, this approach highlights the potential to approximate individual health conditions without relying solely on extensive field surveys or frequent individual-level data collection. In the context of rapid population aging in China, such predictive insights may help governments identify high-risk populations more efficiently and support more timely health planning and resource allocation at the regional level.
+
+# Data Source and Outcome Definition
+
+The analysis uses data from the 2018 wave of the China Health and Retirement Longitudinal Study (CHARLS), a nationally representative survey of Chinese residents aged 45 and above. CHARLS employs a stratified, multi-stage probability sampling design and provides survey weights to ensure representativeness of the target population. The 2018 wave covers 28 provinces in China, excluding Ningxia, Tibet, and Hainan from the sampling frame. In addition, provincial-level GDP and healthcare resource data from the National Bureau of Statistics of China are merged with the cleaned CHARLS dataset to construct a unified analytical dataset.
+
+The analysis focuses on the 2018 wave rather than the 2020 wave because the latter coincides with the COVID-19 pandemic, during which self-reported health may reflect short-term, system-wide shocks. Using 2018 data allows the study to examine individual health perceptions under relatively stable social and health-system conditions.
+
+The outcome of interest is self-reported health status, measured by the CHARLS survey variable da002. Respondents are asked to rate their overall health on a five-point ordinal scale: very good, good, fair, poor, or very poor. This variable captures individuals’ subjective assessment of their general health and is widely used in studies of aging and population health. For the purpose of predictive modeling, da002 is transformed into two alternative target variables: a three-category outcome that groups responses into good, medium, and bad health, and a binary outcome that classifies respondents into good versus bad health.
+
 # Variable selection rationale
 
 The objective of this analysis is to predict individual health status in a way that is informative for resource allocation, rather than for detailed household-level diagnosis. From a central-government perspective, the goal is to assess health needs without relying on costly and time-intensive household surveys. Accordingly, the model relies on general demographic and socio-economic characteristics that are routinely collected through administrative systems and are plausibly correlated with health outcomes. These include age, gender, marital status, living area (urban–rural classification), employment and retirement status, income and pension receipt, health insurance coverage, and number of children. These variables capture key life-course, labor market, and institutional dimensions that shape health risks and access to care, while remaining broadly observable and policy-relevant. In addition, the analysis incorporates province-level health resource indicators, specifically the number of hospitals and healthcare professionals per 10k population, to account for regional variation in healthcare supply.
@@ -19,8 +39,8 @@ The objective of this analysis is to predict individual health status in a way t
 
 The raw CHARLS 2018 data were cleaned and transformed to produce a model-ready dataset suitable for machine-learning workflows. Variables imported with survey value labels were explicitly converted to appropriate formats to avoid unintended numeric interpretations. Categorical variables such as living area and marital status were converted to factor variables using their original survey labels, ensuring they would be treated as nominal predictors in the modeling stage. Binary survey responses (e.g., employment status, income receipt etc.), which were originally coded numerically, were recoded into consistent 0/1 indicators based on documented response categories. Original variables were preserved where necessary, and transformed variables were created explicitly to maintain transparency and reproducibility. This pre-processing strategy ensures that predictors are compatible with relevant machine learning pipelines such as dummy-variable generation.
 
-
 1.  Import data, select variables, convert to variables, cleaning variables
+
 ```{r}
 #install.packages("remotes")
 #remotes::install_github("GuangchuangYu/chinamap")
@@ -88,8 +108,8 @@ data <- Final_2018Merged |>
 
 To investigate the drivers of health status, we implemented a machine learning pipeline that integrated individual survey weights to ensure national representativeness. The data was split into an 80% training set and a 20% test set, with model performance optimized through 10-fold cross-validation. We evaluated both LASSO and Random Forest architectures across two distinct frameworks: continuous regression using the 5-point survey scale and categorical classification. In the classification approach, we initially categorized health status into three levels (Bad, Fair, and Good), but this yielded a low accuracy of approximately 0.50. Reflecting Chinese cultural traditions where "Fair" is often a polite proxy for "Not Good," we re-categorized the outcome into a binary Good/Bad classification, which significantly improved accuracy.
 
-
 2.0 Get data
+
 ```{r}
 set.seed(0202)
 
@@ -106,8 +126,8 @@ data_test <- testing(x = data_split)
 
 ```
 
-
 2.0 Continued: Exploratory Data Analysis: presenting China economic status and health status
+
 ```{r}
 # 1. China GDP by province 
 # GDP information is not from the dataset we use; just to present a general idea of China's economic status
@@ -228,8 +248,8 @@ ggsave(filename = "graph/china_health.png")
 
 ```
 
-
 2.1 Using regression pipelines
+
 ```{r}
 # create a recipe
 data_rec <- 
@@ -349,8 +369,8 @@ ggsave(filename = "graph/importance_rf.png")
 
 ```
 
-
 2.2 Using classification pipelines
+
 ```{r}
 # Treat health status as bad and good
 # create a new recipe
@@ -505,8 +525,8 @@ The four groups of age were divided per sample distribution. Similar subgroup si
 
 From the results, 1. Health status and healthcare resources are indeed related from the GIS visualization we generated. But still, healthcare resources are very tightly bundled with socio-economic level. 2. We've found that as the group ages, healthcare resources would replace socio-economic as the most important predictor of health status. The importance of demographic variables also arises. We could probably conclude therefore that systematic support from society and family are more important than economic status in terms of physical and mental health for elderly.
 
-
 4.  Deep-dive into the final model
+
 ```{r}
 # by checking the variable importance of the random forest model, 
 # we can see that age and hospital resources are ranked very high.
@@ -633,3 +653,29 @@ ggplot(all_age_importance, aes(x = age_group, y = importance, fill = category)) 
 
 ggsave(filename = "graph/importance_rf_age.png")
 ```
+
+# Summary
+
+This project implements a predictive workflow that links exploratory spatial analysis with machine learning models to assess patterns in self-reported health. Provincial-level visualizations of GDP, income, and average self-reported health are first used to summarize broad regional patterns. These descriptive results provide context for the subsequent supervised classification models, which are evaluated using out-of-sample performance and variable importance across different outcome definitions and age groups.
+
+## Methodological Strengths
+
+The project has several methodological strengths. First, the project incorporates a GIS-based mapping workflow using the chinamap package, which provides standardized mappings between provincial identifiers and China’s administrative boundaries. This allows province-level measures of GDP, income, and average self-reported health to be accurately linked to geographic units and visualized on a national map. The resulting spatial visualizations add a structured descriptive layer that complements the individual-level predictive analysis.
+
+Second, the project adopts a modeling approach stratified by age group, motivated by prior literature. The analysis stratifies the sample into four age groups, fits models within each group, and visualizes the aggregated importance of variable domains. These visualizations facilitate comparison of which types of factors are most informative for predicting self-reported health across different segments of the middle-aged and older population.
+
+Finally, the project explores alternative outcome constructions by transforming the original five-category self-reported health variable into both a multi-category and a binary classification target. This allows for robustness checks across classification settings and demonstrates how prediction performance and variable importance change when the outcome definition is simplified.
+
+## Limitation
+
+Several limitations should be acknowledged. First, a nontrivial number of variables contain missing values, which reduces the effective sample size and may affect model stability. While standard data cleaning procedures are applied, missingness may still introduce bias if it is systematically related to health status or socioeconomic conditions.
+
+Second, some contextual variables are only available at the provincial level and are relatively coarse in spatial resolution. Covariates such as hospitals or health resources per 10,000 people may mask substantial within-province heterogeneity, particularly in large and economically diverse provinces. As a result, regional variables may have limited predictive power at the individual level.
+
+Finally, the analysis is cross-sectional and focuses on a single pre-pandemic year. The models capture associations relevant to 2018 conditions but do not account for dynamic health trajectories or changes over time. Consequently, the results should not be interpreted as evidence about long-term health evolution or causal effects.
+
+## Significance
+
+The analysis reveals clear regional disparities in economic conditions and average self-reported health, with more developed coastal provinces generally exhibiting higher income levels and better average health than inland regions. At the individual level, the predictive models achieve meaningful out-of-sample performance, indicating that observable demographic and socioeconomic characteristics contain substantial information about perceived health status.
+
+From a policy perspective, the results demonstrate that routinely collected demographic and socioeconomic data contain sufficient information to approximate individual health risks, reducing reliance on frequent or costly health assessments and helping save both time and financial resources in large-scale health monitoring. Predictive models of this kind can help governments and health agencies identify populations that are more likely to report poor health and prioritize monitoring or preventive interventions. Moreover, the pronounced age heterogeneity in predictor importance underscores the value of age-targeted health strategies, as the types of information most relevant for assessing health risks differ systematically across stages of later life.
