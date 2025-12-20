@@ -20,44 +20,39 @@ The objective of this analysis is to predict individual health status in a way t
 The raw CHARLS 2018 data were cleaned and transformed to produce a model-ready dataset suitable for machine-learning workflows. Variables imported with survey value labels were explicitly converted to appropriate formats to avoid unintended numeric interpretations. Categorical variables such as living area and marital status were converted to factor variables using their original survey labels, ensuring they would be treated as nominal predictors in the modeling stage. Binary survey responses (e.g., employment status, income receipt etc.), which were originally coded numerically, were recoded into consistent 0/1 indicators based on documented response categories. Original variables were preserved where necessary, and transformed variables were created explicitly to maintain transparency and reproducibility. This pre-processing strategy ensures that predictors are compatible with relevant machine learning pipelines such as dummy-variable generation.
 
 
-1. Import data, select variables, convert to variables, cleaning variables
+1.  Import data, select variables, convert to variables, cleaning variables
 ```{r}
+#install.packages("remotes")
+#remotes::install_github("GuangchuangYu/chinamap")
 library(tidyverse)
 library(tidymodels)
 library(vip)
+library(chinamap)
+library(readxl)
 
 load("data/Final_2018Merged.RData")
 
 # da002: Self-Reported Health Status
-
 # cd001_w4_1_: Who Live with XConParName[1]
 # be002: Have a Partner Living Together
-
 # bb001_w3_2: Location of Residential Address
-
 # be001: Marital Status
-
 # bf006_w4_5_1: The Number of Children Under 18
-
 # bg002_w4: Religious Beliefs
-
 # fa002_w4: Nonfarm Work (for at Least One Hour Last Month) or Not
 # ga001: Receive Wage and Bonus Income
 # ga002: How Much Receive
 # fn002_w4: Receive/Participate Government/Institutions/Firm Pension
 # ha000_w4_0: Number of Houses
-
 # ea001_w4_s12: No Medical Insurance
-
 # cb050_w3: Number of Children
-
 # hosp_10k: Number of hospitals per 10k population
 # staff_10k: Number of health professionals per 10,000 population
 
 
 # select only the variables needed
 data <- Final_2018Merged |>
-  select(ID, da002, ba000_w2_3, ba004_w3_1, cd001_w4_1_, bb001_w3_2, be001, bf006_w4_5_1, bg002_w4, fa002_w4, ga001, ga002, fn002_w4, ha000_w4_0, ea001_w4_s12, cb050_w3, hosp_10k, staff_10k, INDV_weight_ad2) |>
+  select(ID, da002, ba000_w2_3, ba004_w3_1, cd001_w4_1_, bb001_w3_2, be001, bf006_w4_5_1, bg002_w4, fa002_w4, ga001, ga002, fn002_w4, ha000_w4_0, ea001_w4_s12, cb050_w3, hosp_10k, staff_10k, INDV_weight_ad2, province) |>
   filter(!is.na(da002)) |>
   mutate(living_area = haven::as_factor(bb001_w3_2)) |>
   mutate(marital_status = haven::as_factor(be001)) |>
@@ -81,39 +76,170 @@ data <- Final_2018Merged |>
     as.numeric(ea001_w4_s12) == 0 ~ 1,
     as.numeric(ea001_w4_s12) == 12 ~ 0)) |>
   mutate(health_cat = case_when(
-    as.numeric(da002) == 1 ~ "bad",
-    as.numeric(da002) == 2 ~ "bad",
+    as.numeric(da002) == 1 ~ "good",
+    as.numeric(da002) == 2 ~ "good",
     as.numeric(da002) == 3 ~ "bad",
-    as.numeric(da002) == 4 ~ "good",
-    as.numeric(da002) == 5 ~ "good"))
+    as.numeric(da002) == 4 ~ "bad",
+    as.numeric(da002) == 5 ~ "bad"))
+
+```
+
+# Machine learning methodology
+
+To investigate the drivers of health status, we implemented a machine learning pipeline that integrated individual survey weights to ensure national representativeness. The data was split into an 80% training set and a 20% test set, with model performance optimized through 10-fold cross-validation. We evaluated both LASSO and Random Forest architectures across two distinct frameworks: continuous regression using the 5-point survey scale and categorical classification. In the classification approach, we initially categorized health status into three levels (Bad, Fair, and Good), but this yielded a low accuracy of approximately 0.50. Reflecting Chinese cultural traditions where "Fair" is often a polite proxy for "Not Good," we re-categorized the outcome into a binary Good/Bad classification, which significantly improved accuracy.
+
+
+2.0 Get data
+```{r}
+set.seed(0202)
+
+# Get the clean data, remove redundant variables, call weighting
+data_clean <- data %>%
+  mutate(weight_idv = importance_weights(INDV_weight_ad2)) |>
+  select(-bb001_w3_2, -be001, -ba000_w2_3, -ba004_w3_1, -ID, -INDV_weight_ad2) |>
+  filter(!is.na(weight_idv))
+
+## Split data
+data_split <- initial_split(data = data_clean, prop = 0.8)
+data_train <- training(x = data_split)
+data_test <- testing(x = data_split)
 
 ```
 
 
-# Machine learning methodology
+2.0 Continued: Exploratory Data Analysis: presenting China economic status and health status
+```{r}
+# 1. China GDP by province 
+# GDP information is not from the dataset we use; just to present a general idea of China's economic status
+## read GDP file, merge into map
+GDP <- read_excel("data/GDP.xls", sheet = "Sheet1")
+
+cn <- get_map_china()
+
+cn_gdp <- cn |>
+  left_join(GDP, by = "province")
+
+## map
+ggplot(cn_gdp,
+                aes(x = long, y = lat, group = group, fill = gdp_2018)) +
+  geom_polygon(color = "black", linewidth = 0.2) + 
+  coord_map() +
+  scale_fill_gradientn(
+    colours = c("red", "yellow", "darkgreen"),
+    na.value = "grey90",
+    name = "GDP in 2018"
+  ) +
+  labs(
+    title = "Each province's GDP in 2018"
+  ) +
+  theme_void() +
+  theme(
+    legend.position = "right",
+    plot.title      = element_text(hjust = 0.5)
+  )
+ggsave(filename = "graph/china_gdp.png")
+
+# 2. distribution of individual income
+## select a series of individual income variables
+income_vars <- c("ga002")
+
+## extract these values about individual annual income
+income_mat <- data_train[, income_vars]
+
+## For each sample, sum the income to obtain the total personal income.
+person_income <- rowSums(as.matrix(income_mat), na.rm = TRUE)
+
+## calculate annual individual income by province
+prov_income <- data_train |>
+  mutate(person_income = person_income) |>
+  group_by(province) |>
+  summarise(
+    mean_income = mean(person_income, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+## merge data into China map
+cn_income <- cn |>
+  left_join(prov_income, by = "province")
+
+## map of annual individual income by province
+ggplot(cn_income,
+       aes(x = long, y = lat, group = group, fill = mean_income)) +
+  geom_polygon(color = "black", size = 0.1) +
+  coord_map() +
+  scale_fill_gradientn(
+    colours = c("red", "yellow", "darkgreen"),  # red~low, high~green
+    na.value = "grey90",
+    name = "Average annual individual income"
+  ) +
+  labs(
+    title = "Average annual individual income in each province in 2018"
+  ) +
+  theme_void() +
+  theme(
+    legend.position = "right",
+    plot.title      = element_text(hjust = 0.5)
+  )
+ggsave(filename = "graph/china_income.png")
+
+# 3. average self-reported health status by province
+
+## Change da002 from haven_labelled to numeric
+data_train <- data_train |>
+  mutate(
+    province = recode(
+      province,
+      "北京"   = "北京市",
+      "广西省" = "广西壮族自治区"  #manually change 2 names into official ones
+    )
+  )
+
+##. Calculate the mean of da002 by province
+prov_da <- data_train |>
+  group_by(province) |>
+  summarise(
+    da002_mean = mean(da002, na.rm = TRUE)
+  ) |>
+  ungroup()
+
+## merge province-level data into China map
+cn_da <- cn |>
+  left_join(prov_da, by = "province")
+
+## map of average da002 among all provinces
+ggplot(cn_da,
+            aes(x = long, y = lat, group = group, fill = da002_mean)) +
+  geom_polygon(color = "black", size = 0.1) +
+  coord_map() +
+  scale_fill_gradientn(
+    colours = c("darkgreen", "yellow", "red"),  #red~low, high~green
+    na.value = "grey90"
+  ) +
+  labs(
+    title = "Average self-reported health in each province（da002）",
+    fill  = "Average self-reported health (da002)"
+  ) +
+  theme_void() +
+  theme(
+    legend.position = "right",
+    plot.title      = element_text(hjust = 0.5)
+  )
+ggsave(filename = "graph/china_health.png")
+
+```
+
 
 2.1 Using regression pipelines
 ```{r}
-set.seed(0202)
-
-## Split data
-data_split <- initial_split(data = data, prop = 0.8)
-data_train <- training(x = data_split)
-data_test <- testing(x = data_split)
-
-## Exploratory Data Analysis: GIS related
-
-
-## v-fold
-folds <- vfold_cv(data = data_train, v = 10, repeats = 1)
-
 # create a recipe
 data_rec <- 
   recipe(da002 ~ ., data = data_train) %>%
-  step_rm(health_cat, bb001_w3_2, be001) %>%
-  step_unknown(all_nominal_predictors()) %>%
+  step_rm(health_cat, province) %>%
   step_impute_median(all_numeric_predictors()) %>%
   step_dummy(all_nominal_predictors())
+
+# v-fold: using this folds for all remaining models
+folds <- vfold_cv(data = data_train, v = 10, repeats = 1)
 
 # Lasso prediction
 ## create a tuning grid for lasso regularization, varying the regularization penalty
@@ -129,7 +255,8 @@ lasso_mod <- linear_reg(
 ## Lasso workflow
 lasso_wf <- workflow() %>%
   add_recipe(data_rec) %>%
-  add_model(lasso_mod)
+  add_model(lasso_mod) %>%
+  add_case_weights(weight_idv)
 
 ## fit
 lasso_cv <- lasso_wf %>%
@@ -172,7 +299,8 @@ rf_mod <- rand_forest() |>
 ## Random forest workflow
 rf_wf <- workflow() |>
   add_recipe(data_rec) |>
-  add_model(rf_mod)
+  add_model(rf_mod) |>
+  add_case_weights(weight_idv)
 
 ## fit
 rf_resamples <- rf_wf |>
@@ -217,18 +345,18 @@ rf_final |>
   labs(title = "Variable Importance: Random Forest Model") +
   theme_minimal()
 
-# ggsave(filename = "importance_rf.png")
+ggsave(filename = "graph/importance_rf.png")
+
 ```
 
 
 2.2 Using classification pipelines
 ```{r}
-# Treat health status as bad, fair and good
+# Treat health status as bad and good
 # create a new recipe
 data_rec_cat <- 
   recipe(health_cat ~ ., data = data_train) %>%
-  step_rm(da002, bb001_w3_2, be001) %>%
-  step_unknown(all_nominal_predictors()) %>%
+  step_rm(da002, province) %>%
   step_impute_median(all_numeric_predictors()) %>%
   step_dummy(all_nominal_predictors())
 
@@ -243,7 +371,8 @@ lasso_mod_cat <- multinom_reg(
 ## Lasso workflow
 lasso_wf_cat <- workflow() %>%
   add_recipe(data_rec_cat) %>%
-  add_model(lasso_mod_cat)
+  add_model(lasso_mod_cat) %>%
+  add_case_weights(weight_idv)
 
 ## fit
 lasso_cv_cat <- lasso_wf_cat %>%
@@ -272,7 +401,8 @@ lasso_acc |>
 
 mean(lasso_acc$.estimate)
 
-# Random Forest prediction
+# --------Random forest-----------
+## Random Forest model call
 rf_mod_cat <- rand_forest() |>
   set_mode(mode = "classification") |>
   set_engine(
@@ -281,10 +411,11 @@ rf_mod_cat <- rand_forest() |>
     num.threads = 4
   )
 
-# --------Random forest workflow-----------
+## workflow
 rf_wf_cat <- workflow() |>
   add_recipe(data_rec_cat) |>
-  add_model(rf_mod_cat)
+  add_model(rf_mod_cat) |>
+  add_case_weights(weight_idv)
 
 ## fit
 rf_resamples_cat <- rf_wf_cat |>
@@ -339,18 +470,166 @@ lasso_coefs |>
   facet_grid(~ Sign) +
   theme_minimal()
 
-# ggsave(filename = "importance_lasso.png")
+ggsave(filename = "graph/importance_lasso.png")
 
 ```
 
+# Final model choose
 
+In the regression analysis, which preserved the original granularity of the 5-point health scale, the Random Forest model outperformed the LASSO regression by achieving a lower Root Mean Square Error (RMSE). Conversely, in the classification task—where health status was grouped into discrete "good" and "bad" categories, the LASSO model yielded slightly higher accuracy. While both modeling strategies produced broadly consistent results, the classification approach relies on a subjective threshold for health categorization that may sacrifice nuance or introduce bias. Therefore, to ensure the most robust and objective estimation of health outcomes, we selected the Random Forest regression as our final model for evaluation against the test dataset.
+
+3.  Fit the final model, check result
 
 ```{r}
+# fit on test data
+test_pred <- predict(rf_final, data_test)
 
+# getting rmse
+test_pred <- data_test %>%
+  select(da002) %>%
+  bind_cols(test_pred)
 
-
+rmse(test_pred, truth = da002, estimate = .pred)
 
 ```
 
+## Deep-dive into the final model
+
+Following the selection of the Random Forest as our final model, we observed that age and healthcare resources emerged as the most significant predictors of health status. Based on this, we conducted a two-part follow-up analysis to investigate the age, healthcare resources and their relationship with health status.
+
+First, we examined whether the geographical distribution of healthcare resources follows a similar pattern to general health status. This analysis seeks to determine if areas with higher resource density (hospital and staff availability) correspond to regions with superior health outcomes, or if significant gaps exist where resource allocation fails to match the population's health needs.
+
+Second, we analyzed how the drivers of health shift across different life stages. We divided the sample into four quartiles — Younger, Young to middle, Middle to elder, and Elderly — and re-evaluated importance within three categorized domains: Demographic: Age, sex, marital status, living with a partner, number of family members, and religion. Socio-economic: Income, pension, farming status, living area (urban/rural), and real-estate ownership. Healthcare resources: Hospital density per 10k, healthcare professionals per 10k, and medical insurance coverage.
+
+The four groups of age were divided per sample distribution. Similar subgroup size ensures the comparability of important scores across group, and thanks to the balanced sampling of CHARLS dataset, the four groups are also good representatives of intuitive population stratification of younger, close to retirement, retired and elderly.
+
+From the results, 1. Health status and healthcare resources are indeed related from the GIS visualization we generated. But still, healthcare resources are very tightly bundled with socio-economic level. 2. We've found that as the group ages, healthcare resources would replace socio-economic as the most important predictor of health status. The importance of demographic variables also arises. We could probably conclude therefore that systematic support from society and family are more important than economic status in terms of physical and mental health for elderly.
 
 
+4.  Deep-dive into the final model
+```{r}
+# by checking the variable importance of the random forest model, 
+# we can see that age and hospital resources are ranked very high.
+knitr::include_graphics("graph/importance_rf.png")
+
+# hospital resources by province, compared with health status
+## density of hospitals (per 10,000 population)
+prov_hosp <- data_train |>
+  group_by(province) |>
+  summarise(
+    hosp_10k_mean = mean(as.numeric(hosp_10k), na.rm = TRUE),
+    .groups = "drop"
+  )
+
+cn_hosp <- cn |>
+  left_join(prov_hosp, by = "province")
+
+ggplot(cn_hosp,
+       aes(x = long, y = lat, group = group, fill = hosp_10k_mean)) +
+  geom_polygon(color = "black", size = 0.1) +
+  coord_map() +
+  scale_fill_gradientn(
+    colours = c("red", "yellow", "darkgreen"),  #  red~low, high~green
+    na.value = "grey90",
+    name = "hospital density（per 10,000 population）"
+  ) +
+  labs(
+    title = "Hospital density by province in 2018 (hospitals per 10,000 people)"
+  ) +
+  theme_void() +
+  theme(
+    legend.position = "right",
+    plot.title      = element_text(hjust = 0.5)
+  )
+ggsave(filename = "graph/china_hospital.png")
+
+## density of health professionals (per 10,000 population)
+prov_staff <- Final_2018Merged |>
+  group_by(province) |>
+  summarise(
+    staff_10k_mean = mean(as.numeric(staff_10k), na.rm = TRUE),
+    .groups = "drop"
+  )
+ 
+cn_staff <- cn |>
+  left_join(prov_staff, by = "province")
+
+ggplot(cn_staff,
+       aes(x = long, y = lat, group = group, fill = staff_10k_mean)) +
+  geom_polygon(color = "black", size = 0.1) +
+  coord_map() +
+  scale_fill_gradientn(
+    colours = c("red", "yellow", "darkgreen"),
+    na.value = "grey90",
+    name = "Healthcare personnel density (per 10,000 people)"
+  ) +
+  labs(
+    title = "Healthcare personnel density (professionals per 10,000 people)"
+  ) +
+  theme_void() +
+  theme(
+    legend.position = "right",
+    plot.title      = element_text(hjust = 0.5)
+  )
+ggsave(filename = "graph/china_medical_professinals.png")
+
+# check variable importance by different age groups
+## divide variables into different groups
+var_groups <- list(
+  demographic = c("living_area", "marital_status", "bg002_w4", "cb050_w3", "bf006_w4_5_1", "male", "age"),
+  socio_economic = c("fa002_w4", "fn002_w4", "ga001", "ga002", "ha000_w4_0"),
+  healthcare_resources = c("hosp_10k", "staff_10k", "ea001_w4_s12")
+)
+
+## divide the dataset into different groups of age per sample distribution
+summary(data$age)
+data_train_age <- data_train |>
+  mutate(age_group = case_when(
+    age < 53 ~ "Younger",
+    age >= 53 & age < 61 ~ "Young-Middle",
+    age >= 61 & age < 68 ~ "Middle-Elder",
+    age >= 68 ~ "Elderly")) |>
+  filter(!is.na(age))
+
+## fit for different age groups
+fit_young <- rf_final |> 
+  fit(data = filter(data_train_age, age_group == "Younger"))
+fit_ym <- rf_final |> 
+  fit(data = filter(data_train_age, age_group == "Young-Middle"))
+fit_me <- rf_final |> 
+  fit(data = filter(data_train_age, age_group == "Middle-Elder"))
+fit_elderly <- rf_final |> 
+  fit(data = filter(data_train_age, age_group == "Elderly"))
+
+## extract importance and label for each group
+vi_young   <- vi(extract_fit_parsnip(fit_young)) |> 
+  mutate(age_group = "Younger")
+vi_ym  <- vi(extract_fit_parsnip(fit_ym)) |> 
+  mutate(age_group = "Young-Middle")
+vi_me  <- vi(extract_fit_parsnip(fit_me)) |> 
+  mutate(age_group = "Middle-Elder")
+vi_elderly <- vi(extract_fit_parsnip(fit_elderly)) |>
+  mutate(age_group = "Elderly")
+
+## combine importance scores, add variable category, sum up importance scores
+all_age_importance <- bind_rows(vi_young, vi_ym, vi_me, vi_elderly) |>
+  mutate(category = case_when(
+    Variable %in% var_groups$demographic ~ "Demographic",
+    Variable %in% var_groups$socio_economic ~ "Socio-Economic",
+    Variable %in% var_groups$healthcare_resources ~ "Healthcare Resources")) |>
+  group_by(age_group, category) |>
+  summarize(importance = sum(Importance, na.rm = TRUE)) |>
+  filter(!is.na(category)) |>
+  mutate(age_group = factor(age_group, 
+                            levels = c("Younger", "Young-Middle", "Middle-Elder", "Elderly")))
+
+## plotting for variable importance by age group
+ggplot(all_age_importance, aes(x = age_group, y = importance, fill = category)) +
+  geom_col(position = "dodge") +
+  labs(
+    title = "Importance of Variable Categories by Age Group") +
+  theme_minimal() +
+  theme(legend.position = "top")
+
+ggsave(filename = "graph/importance_rf_age.png")
+```
